@@ -4,14 +4,6 @@ from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
 import cloudinary.uploader
 import uuid
-import os
-from config import Config
-
-app = Flask(__name__)
-app.config.from_object(Config)
-
-db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
 
 # ------------------ MODELS ------------------
 class User(db.Model):
