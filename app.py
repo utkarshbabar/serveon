@@ -83,6 +83,30 @@ def register():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+# ------------------ CYBERSECURITY CATEGORIES ------------------
+CYBERSECURITY_CATEGORIES = [
+    "Network Security",
+    "Web Application Security",
+    "Cloud Security",
+    "Cryptography",
+    "Penetration Testing",
+    "Malware Analysis",
+    "Digital Forensics",
+    "Incident Response",
+    "Threat Intelligence",
+    "Vulnerability Assessment",
+    "Ethical Hacking",
+    "Red Teaming",
+    "Blue Teaming",
+    "Reverse Engineering",
+    "Wireless Security",
+    "IoT Security",
+    "Social Engineering",
+    "Security Tools & Scripts",
+    "CTF Writeups",
+    "Bug Bounty Reports",
+    "OSINT (Open Source Intelligence)"
+]
 
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
@@ -108,7 +132,9 @@ def upload():
             db.session.commit()
             flash("File uploaded successfully!")
             return redirect(url_for("index"))
-    return render_template("upload.html")
+    # 👇 Pass categories to the upload.html template
+    return render_template("upload.html", categories=CYBERSECURITY_CATEGORIES)
+
 
 @app.route("/files/<path:filename>")
 def download_file(filename):
