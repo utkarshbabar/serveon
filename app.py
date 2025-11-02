@@ -1,9 +1,27 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, session, send_file
+from flask import Flask, render_template, redirect, url_for, request, flash, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
-import cloudinary.uploader
-import uuid
+import os
+
+# ------------------ FLASK SETUP ------------------
+app = Flask(__name__)
+
+# Secret key for sessions
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_secret_key')
+
+# Database configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Local upload folder
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Initialize extensions
+db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
 
 # ------------------ MODELS ------------------
 class User(db.Model):
@@ -17,7 +35,7 @@ class File(db.Model):
     display_name = db.Column(db.String(200))
     category = db.Column(db.String(100))
     original_filename = db.Column(db.String(200))
-    cloudinary_url = db.Column(db.String(500))
+    file_path = db.Column(db.String(500))
     uploaded_by = db.Column(db.String(100))
 
 # ------------------ ROUTES ------------------
@@ -75,12 +93,15 @@ def upload():
         display_name = request.form["display_name"]
         category = request.form["category"]
         if file:
-            result = cloudinary.uploader.upload(file)
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+
             new_file = File(
                 display_name=display_name,
                 category=category,
-                original_filename=file.filename,
-                cloudinary_url=result["secure_url"],
+                original_filename=filename,
+                file_path=file_path,
                 uploaded_by=session["user"]
             )
             db.session.add(new_file)
@@ -88,6 +109,12 @@ def upload():
             flash("File uploaded successfully!")
             return redirect(url_for("index"))
     return render_template("upload.html")
+
+@app.route("/files/<path:filename>")
+def download_file(filename):
+    if "user" not in session:
+        return redirect(url_for("login"))
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route("/admin")
 def admin():
@@ -111,10 +138,15 @@ def delete_file(id):
     if session.get("role") == "admin":
         file = File.query.get(id)
         if file:
+            try:
+                os.remove(file.file_path)
+            except Exception as e:
+                print("Error deleting file:", e)
             db.session.delete(file)
             db.session.commit()
     return redirect(url_for("admin"))
 
+# ------------------ RUN ------------------
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
