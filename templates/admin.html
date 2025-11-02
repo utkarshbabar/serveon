@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block title %} - Admin{% endblock %}
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card mb-3 shadow-sm">
+      <div class="card-body">
+        <h5>Users</h5>
+        <table class="table table-sm">
+          <thead><tr><th>Username</th><th>Admin</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td>{{ u.username }}</td>
+              <td>{{ 'Yes' if u.is_admin else 'No' }}</td>
+              <td>{{ u.created_at }}</td>
+              <td>
+                <form method="post" action="{{ url_for('admin_delete_user') }}" style="display:inline">
+                  <input type="hidden" name="user_id" value="{{ u.id }}" />
+                  <button class="btn btn-sm btn-danger" type="submit" onclick="return confirm('Delete user and their files?');">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card mb-3 shadow-sm">
+      <div class="card-body">
+        <h5>Files</h5>
+        <table class="table table-sm">
+          <thead><tr><th>Display</th><th>Category</th><th>Original</th><th>Uploader</th><th>Uploaded</th><th>Action</th></tr></thead>
+          <tbody>
+            {% for f in files %}
+            <tr>
+              <td>{{ f.display_name }}</td>
+              <td>{{ f.category }}</td>
+              <td>{{ f.original_filename }}</td>
+              <td>{{ f.username }}</td>
+              <td>{{ f.uploaded_at }}</td>
+              <td>
+                <form method="post" action="{{ url_for('admin_delete_file') }}" style="display:inline">
+                  <input type="hidden" name="file_id" value="{{ f.id }}" />
+                  <button class="btn btn-sm btn-danger" type="submit" onclick="return confirm('Delete file from server and DB?');">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
