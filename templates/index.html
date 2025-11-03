@@ -29,9 +29,14 @@
               <td class="col-display">{{ f.display_name }}</td>
               <td class="col-category">{{ f.category }}</td>
               <td class="col-original">{{ f.original_filename }}</td>
-              <td class="col-user">{{ f.username }}</td>
+              <td class="col-user">{{ f.uploaded_by }}</td>
               <td>{{ f.uploaded_at }}</td>
-              <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('download', file_id=f.id) }}">Download</a></td>
+              <td>
+                <a class="btn btn-sm btn-outline-primary" 
+                   href="{{ url_for('download_file', filename=f.original_filename) }}">
+                  Download
+                </a>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -43,3 +48,4 @@
   </div>
 </div>
 {% endblock %}
+
