@@ -1,112 +1,122 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, session, send_from_directory
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, render_template, redirect, url_for, request, flash, session, send_from_directory, jsonify
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
+from datetime import datetime
 import os
+import json
 
-# ------------------ FLASK SETUP ------------------
 app = Flask(__name__)
+app.secret_key = 'dev_secret_key'  # Simple local secret key
 
-# Secret key for sessions
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_secret_key')
-
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Local upload folder
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Initialize extensions
-db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
-# ------------------ MODELS ------------------
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default="user")
+# Local JSON files for simple storage
+USERS_FILE = "users.json"
+FILES_FILE = "files.json"
 
-class File(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    display_name = db.Column(db.String(200))
-    category = db.Column(db.String(100))
-    original_filename = db.Column(db.String(200))
-    file_path = db.Column(db.String(500))
-    uploaded_by = db.Column(db.String(100))
 
-# ------------------ ROUTES ------------------
+# ------------------ Helper Functions ------------------
+def load_data(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            return json.load(f)
+    return []
+
+def save_data(file_path, data):
+    with open(file_path, "w") as f:
+        json.dump(data, f, indent=4)
+
+def get_all_users():
+    return load_data(USERS_FILE)
+
+def get_all_files():
+    return load_data(FILES_FILE)
+
+def add_user(username, password, role="user"):
+    users = get_all_users()
+    users.append({"username": username, "password": password, "role": role})
+    save_data(USERS_FILE, users)
+
+def add_file(display_name, category, original_filename, uploaded_by):
+    files = get_all_files()
+    uploaded_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    files.append({
+        "display_name": display_name,
+        "category": category,
+        "original_filename": original_filename,
+        "uploaded_by": uploaded_by,
+        "uploaded_at": uploaded_at
+    })
+    save_data(FILES_FILE, files)
+
+
+# ------------------ Routes ------------------
 
 @app.route("/")
 def index():
     if "user" not in session:
         return redirect(url_for("login"))
-    search_query = request.args.get("search", "")
-    files = File.query.filter(
-        (File.display_name.ilike(f"%{search_query}%")) |
-        (File.category.ilike(f"%{search_query}%")) |
-        (File.original_filename.ilike(f"%{search_query}%"))
-    ).all()
+
+    search_query = request.args.get("search", "").lower()
+    files = get_all_files()
+    if search_query:
+        files = [f for f in files if
+                 search_query in f['display_name'].lower() or
+                 search_query in f['category'].lower() or
+                 search_query in f['original_filename'].lower()]
     return render_template("index.html", files=files, user=session["user"], role=session["role"])
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-        user = User.query.filter_by(username=username).first()
-        if user and bcrypt.check_password_hash(user.password, password):
-            session["user"] = username
-            session["role"] = user.role
-            return redirect(url_for("index"))
-        flash("Invalid credentials")
+
+        users = get_all_users()
+        for user in users:
+            if user["username"] == username and bcrypt.check_password_hash(user["password"], password):
+                session["user"] = username
+                session["role"] = user["role"]
+                return redirect(url_for("index"))
+        flash("Invalid username or password", "danger")
     return render_template("login.html")
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         username = request.form["username"]
         password = bcrypt.generate_password_hash(request.form["password"]).decode("utf-8")
-        if User.query.filter_by(username=username).first():
-            flash("Username already exists!")
+        users = get_all_users()
+        if any(u["username"] == username for u in users):
+            flash("Username already exists!", "danger")
         else:
-            db.session.add(User(username=username, password=password))
-            db.session.commit()
-            flash("Account created successfully!")
+            add_user(username, password)
+            flash("Account created successfully! Please login.", "success")
             return redirect(url_for("login"))
     return render_template("register.html")
+
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
-# ------------------ CYBERSECURITY CATEGORIES ------------------
+
+
 CYBERSECURITY_CATEGORIES = [
-    "Network Security",
-    "Web Application Security",
-    "Cloud Security",
-    "Cryptography",
-    "Penetration Testing",
-    "Malware Analysis",
-    "Digital Forensics",
-    "Incident Response",
-    "Threat Intelligence",
-    "Vulnerability Assessment",
-    "Ethical Hacking",
-    "Red Teaming",
-    "Blue Teaming",
-    "Reverse Engineering",
-    "Wireless Security",
-    "IoT Security",
-    "Social Engineering",
-    "Security Tools & Scripts",
-    "CTF Writeups",
-    "Bug Bounty Reports",
-    "OSINT (Open Source Intelligence)"
+    "Network Security", "Web Application Security", "Cloud Security", "Cryptography",
+    "Penetration Testing", "Malware Analysis", "Digital Forensics", "Incident Response",
+    "Threat Intelligence", "Vulnerability Assessment", "Ethical Hacking", "Red Teaming",
+    "Blue Teaming", "Reverse Engineering", "Wireless Security", "IoT Security",
+    "Social Engineering", "Security Tools & Scripts", "CTF Writeups",
+    "Bug Bounty Reports", "OSINT (Open Source Intelligence)"
 ]
+
 
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
@@ -116,23 +126,14 @@ def upload():
         file = request.files["file"]
         display_name = request.form["display_name"]
         category = request.form["category"]
+
         if file:
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
-
-            new_file = File(
-                display_name=display_name,
-                category=category,
-                original_filename=filename,
-                file_path=file_path,
-                uploaded_by=session["user"]
-            )
-            db.session.add(new_file)
-            db.session.commit()
-            flash("File uploaded successfully!")
+            add_file(display_name, category, filename, session["user"])
+            flash("File uploaded successfully!", "success")
             return redirect(url_for("index"))
-    # 👇 Pass categories to the upload.html template
     return render_template("upload.html", categories=CYBERSECURITY_CATEGORIES)
 
 
@@ -142,38 +143,17 @@ def download_file(filename):
         return redirect(url_for("login"))
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+
 @app.route("/admin")
 def admin():
-    if "user" not in session or session["role"] != "admin":
+    if "user" not in session" or session["role"] != "admin":
+        flash("You are not authorized to access the admin page.", "danger")
         return redirect(url_for("index"))
-    users = User.query.all()
-    files = File.query.all()
+    users = get_all_users()
+    files = get_all_files()
     return render_template("admin.html", users=users, files=files)
 
-@app.route("/delete_user/<int:id>")
-def delete_user(id):
-    if session.get("role") == "admin":
-        user = User.query.get(id)
-        if user:
-            db.session.delete(user)
-            db.session.commit()
-    return redirect(url_for("admin"))
 
-@app.route("/delete_file/<int:id>")
-def delete_file(id):
-    if session.get("role") == "admin":
-        file = File.query.get(id)
-        if file:
-            try:
-                os.remove(file.file_path)
-            except Exception as e:
-                print("Error deleting file:", e)
-            db.session.delete(file)
-            db.session.commit()
-    return redirect(url_for("admin"))
-
-# ------------------ RUN ------------------
+# ------------------ Run ------------------
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
