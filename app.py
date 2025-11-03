@@ -145,13 +145,10 @@ def download_file(filename):
 
 
 @app.route("/admin")
-def admin():
-    if "user" not in session" or session["role"] != "admin":
-        flash("You are not authorized to access the admin page.", "danger")
-        return redirect(url_for("index"))
-    users = get_all_users()
-    files = get_all_files()
-    return render_template("admin.html", users=users, files=files)
+def admin_panel():
+    if "user" not in session or session["role"] != "admin":
+        return redirect(url_for("login"))
+    ...
 
 
 # ------------------ Run ------------------
